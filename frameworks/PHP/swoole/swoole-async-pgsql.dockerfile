@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 
 ENV PHP_VERSION 8.2.10
 ENV SWOOLE_VERSION 5.0.3
-ENV ENABLE_COROUTINE 0
+ENV ENABLE_COROUTINE 1
 ENV DATABASE_DRIVER pgsql
 
 RUN apt update && apt install -y autoconf re2c bison gcc g++ libxml2-dev pkg-config libsqlite3-dev libssl-dev libpq-dev zlib1g-dev make curl && \

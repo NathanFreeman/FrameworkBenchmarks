@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 use Swoole\Database\PDOConfig;
 use Swoole\Database\PDOPool;
+use Swoole\Database\PDOProxy;
+use Swoole\Database\PDOStatementProxy;
 
 class Operation
 {
@@ -12,16 +14,16 @@ class Operation
     public const UPDATE_SQL = 'UPDATE World SET randomNumber = ? WHERE id = ?';
     public const QUERY_SQL = 'SELECT id,randomNumber FROM World WHERE id=?';
 
-    public static function db(PDOStatement $db): string
+    public static function db(PDOStatement|PDOStatementProxy $db): string
     {
         $db->execute([mt_rand(1, 10000)]);
-        return json_encode($db->fetch(), JSON_NUMERIC_CHECK);
+        return json_encode($db->fetch(PDO::FETCH_ASSOC), JSON_NUMERIC_CHECK);
     }
 
-    public static function fortunes(PDOStatement $fortune): string
+    public static function fortunes(PDOStatement|PDOStatementProxy $fortune): string
     {
         $fortune->execute();
-        $results    = $fortune->fetchAll();
+        $results    = $fortune->fetchAll(PDO::FETCH_KEY_PAIR);
         $results[0] = 'Additional fortune added at request time.';
         asort($results);
 
@@ -34,7 +36,7 @@ class Operation
         return "<!DOCTYPE html><html><head><title>Fortunes</title></head><body><table><tr><th>id</th><th>message</th></tr>$html</table></body></html>";
     }
 
-    public static function query(PDOStatement $query, int $queries): string
+    public static function query(PDOStatement|PDOStatementProxy $query, int $queries): string
     {
         $query_count = 1;
         if ($queries > 1) {
@@ -44,13 +46,13 @@ class Operation
         $results = [];
         while ($query_count--) {
             $query->execute([mt_rand(1, 10000)]);
-            $results[] = $query->fetch();
+            $results[] = $query->fetch(PDO::FETCH_ASSOC);
         }
 
         return json_encode($results, JSON_NUMERIC_CHECK);
     }
 
-    public static function updates(PDOStatement $random, PDOStatement $update, int $queries): string
+    public static function updates(PDOStatement|PDOStatementProxy $random, PDOStatement|PDOStatementProxy $update, int $queries): string
     {
         $query_count = 1;
         if ($queries > 1) {
@@ -59,8 +61,9 @@ class Operation
 
         $results = [];
         while ($query_count--) {
-            $random->execute([mt_rand(1, 10000)]);
-            $item = $random->fetch();
+            $id = mt_rand(1, 10000);
+            $random->execute([$id]);
+            $item = $random->fetch(PDO::FETCH_ASSOC);
             $update->execute([$item['randomNumber'] = mt_rand(1, 10000), $id]);
 
             $results[] = $item;
@@ -76,6 +79,7 @@ class Connection
     private static PDOStatement $fortune;
     private static PDOStatement $random;
     private static PDOStatement $update;
+    private static PDOStatement $query;
 
     public static function init(string $driver): void
     {
@@ -94,6 +98,7 @@ class Connection
         self::$fortune = $pdo->prepare(Operation::FORTUNE_SQL);
         self::$random  = $pdo->prepare(Operation::RANDOM_SQL);
         self::$update  = $pdo->prepare(Operation::UPDATE_SQL);
+        self::$query   = $pdo->prepare(Operation::QUERY_SQL);
     }
 
     public static function db(): string
@@ -104,6 +109,11 @@ class Connection
     public static function fortunes(): string
     {
         return Operation::fortunes(self::$fortune);
+    }
+
+    public static function query(int $queries): string
+    {
+        return Operation::query(self::$query, $queries);
     }
 
     public static function updates(int $queries): string
@@ -126,7 +136,7 @@ class Connections
             ->withUsername('benchmarkdbuser')
             ->withPassword('benchmarkdbpass');
 
-        self::$pool = new PDOPool($config, 8);
+        self::$pool = new PDOPool($config, 20);
     }
 
     public static function db(): string
@@ -147,6 +157,15 @@ class Connections
         return $result;
     }
 
+    public static function query(int $queries): string
+    {
+        $pdo    = self::get();
+        $result = Operation::query($pdo->prepare(Operation::QUERY_SQL), $queries);
+        self::put($pdo);
+
+        return $result;
+    }
+
     public static function updates(int $queries): string
     {
         $pdo    = self::get();
@@ -156,14 +175,13 @@ class Connections
         return $result;
     }
 
-    private static function get(): PDO
+    private static function get(): PDO|PDOProxy
     {
         return self::$pool->get();
     }
 
-    private static function put(PDO $db): void
+    private static function put(PDO|PDOProxy $db): void
     {
         self::$pool->put($db);
     }
-
 }

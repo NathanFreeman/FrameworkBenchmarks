@@ -5,7 +5,7 @@ use Swoole\Http\Server;
 use Swoole\Http\Request;
 use Swoole\Http\Response;
 
-$enableCoroutine = getenv('ENABLE_COROUTINE') == 0;
+$enableCoroutine = getenv('ENABLE_COROUTINE') == 1;
 $connection      = $enableCoroutine ? Connections::class : Connection::class;
 
 $server  = new Server('0.0.0.0', 8080);
@@ -48,11 +48,11 @@ $server->on('request', function (Request $req, Response $res) use ($connection) 
                 break;
             case '/query':
                 $res->header['Content-Type'] = 'application/json';
-                $res->end($connection::updates(
+                $res->end($connection::query(
                     isset($req->get['queries']) ? (int) $req->get['queries'] : -1
                 ));
                 break;
-            case '/update':
+            case '/updates':
                 $res->header['Content-Type'] = 'application/json';
                 $res->end($connection::updates(
                     isset($req->get['queries']) ? (int) $req->get['queries'] : -1
@@ -62,7 +62,6 @@ $server->on('request', function (Request $req, Response $res) use ($connection) 
             default:
                 $res->status(404);
                 $res->end('Error 404');
-
         }
     } catch (Throwable) {
         $res->status(500);

@@ -51,13 +51,8 @@ class Operation
 
     public static function updates(PDOStatement|PDOStatementProxy $random, PDOStatement|PDOStatementProxy $update, int $queries): string
     {
-        $query_count = 1;
-        if ($queries > 1) {
-            $query_count = min($queries, 500);
-        }
-
         $results = $keys = $values = [];
-        while ($query_count--) {
+        while ($queries--) {
             $random->execute([mt_rand(1, 10000)]);
             $item                 = $random->fetch(PDO::FETCH_ASSOC);
             $item['randomNumber'] = mt_rand(1, 10000);
@@ -119,13 +114,15 @@ class Connection
 
     public static function updates(int $queries): string
     {
-        if (!isset(self::$updates[$queries])) {
-            self::$updates[$queries] = self::$driver == 'pgsql'
-                ? self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $queries).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $queries - 1).'?::INTEGER)')
-                : self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ? THEN ? ', $queries).'END WHERE id IN ('.\str_repeat('?,', $queries - 1).'?)');
+        $query_count = $queries > 1 ? min($queries, 500) : 1;
+
+        if (!isset(self::$updates[$query_count])) {
+            self::$updates[$query_count] = self::$driver == 'pgsql'
+                ? self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $query_count).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $query_count - 1).'?::INTEGER)')
+                : self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ? THEN ? ', $query_count).'END WHERE id IN ('.\str_repeat('?,', $query_count - 1).'?)');
         }
 
-        return Operation::updates(self::$random, self::$updates[$queries], $queries);
+        return Operation::updates(self::$random, self::$updates[$query_count], $query_count);
     }
 }
 
@@ -179,8 +176,9 @@ class Connections
 
     public static function updates(int $queries): string
     {
-        $pdo = self::get();
-        $result = Operation::updates(self::getStatement($pdo, 'select'), self::getStatement($pdo, 'update', $queries), $queries);
+        $query_count = $queries > 1 ? min($queries, 500) : 1;
+        $pdo         = self::get();
+        $result      = Operation::updates(self::getStatement($pdo, 'select'), self::getStatement($pdo, 'update', $query_count), $query_count);
         self::put($pdo);
 
         return $result;

@@ -198,18 +198,24 @@ class Connections
         $hash = spl_object_id($pdo);
 
         if ('select' == $type) {
-            self::$dbs[$hash] = self::$dbs[$hash] ?? $pdo->prepare(Operation::WORLD_SELECT_SQL);
+            if (!isset(self::$dbs[$hash])) {
+                self::$dbs[$hash] = $pdo->prepare(Operation::WORLD_SELECT_SQL);
+            }
+
             return self::$dbs[$hash];
         } elseif ('fortunes' == $type) {
-            self::$fortunes[$hash] = self::$fortunes[$hash] ?? $pdo->prepare(Operation::FORTUNE_SQL);
+            if (!isset(self::$fortunes[$hash])) {
+                self::$fortunes[$hash] = $pdo->prepare(Operation::FORTUNE_SQL);
+            }
+
             return self::$fortunes[$hash];
         } else {
-            self::$updates[$hash][$queries] = self::$updates[$hash][$queries]
-                ?? (
-                self::$driver == 'pgsql'
+            if (!isset(self::$updates[$hash][$queries])) {
+                self::$updates[$hash][$queries] = self::$driver == 'pgsql'
                     ? $pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $queries).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $queries - 1).'?::INTEGER)')
-                    : $pdo->prepare(Operation::WORLD_UPDATE_SQL)
-                );
+                    : $pdo->prepare(Operation::WORLD_UPDATE_SQL);
+            }
+
             return self::$updates[$hash][$queries];
         }
     }

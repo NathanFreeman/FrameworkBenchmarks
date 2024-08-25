@@ -56,28 +56,31 @@ class Operation
             $query_count = min($queries, 500);
         }
 
-        $results = [];
+        $results = $keys = $values = [];
         while ($query_count--) {
-            $id = mt_rand(1, 10000);
-            $random->execute([$id]);
-            $item = $random->fetch(PDO::FETCH_ASSOC);
-            $update->execute([$item['randomNumber'] = mt_rand(1, 10000), $id]);
+            $random->execute([mt_rand(1, 10000)]);
+            $item                 = $random->fetch(PDO::FETCH_ASSOC);
+            $item['randomNumber'] = mt_rand(1, 10000);
+            $results[]            = $item;
 
-            $results[] = $item;
+            $values[] = $keys[] = $item['id'];
+            $values[] = $item['randomNumber'];
         }
 
+        $update->execute([...$values, ...$keys]);
         return json_encode($results, JSON_NUMERIC_CHECK);
     }
 }
 
 class Connection
 {
+    private static PDO $pdo;
+    private static string $driver;
+    private static array $updates = [];
     private static PDOStatement $db;
     private static PDOStatement $fortune;
     private static PDOStatement $random;
     private static PDOStatement $query;
-    private static PDO $pdo;
-    private static string $driver;
 
     public static function init(string $driver): void
     {
@@ -116,18 +119,23 @@ class Connection
 
     public static function updates(int $queries): string
     {
-        $update = self::$driver == 'pgsql'
-            ? self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $queries).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $queries - 1).'?::INTEGER)')
-            : self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ? THEN ? ', $queries).'END WHERE id IN ('.\str_repeat('?,', $queries - 1).'?)');
-        return Operation::updates(self::$random, $update, $queries);
+        if (!isset(self::$updates[$queries])) {
+            self::$updates[$queries] = self::$driver == 'pgsql'
+                ? self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $queries).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $queries - 1).'?::INTEGER)')
+                : self::$pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ? THEN ? ', $queries).'END WHERE id IN ('.\str_repeat('?,', $queries - 1).'?)');
+        }
+
+        return Operation::updates(self::$random, self::$updates[$queries], $queries);
     }
 }
 
 class Connections
 {
     private static PDOPool $pool;
-
     private static string $driver;
+    private static array $dbs = [];
+    private static array $fortunes = [];
+    private static array $updates = [];
 
     public static function init(string $driver): void
     {
@@ -146,16 +154,15 @@ class Connections
     public static function db(): string
     {
         $pdo    = self::get();
-        $result = Operation::db($pdo->prepare(Operation::WORLD_SELECT_SQL));
+        $result = Operation::db(self::getStatement($pdo, 'select'));
         self::put($pdo);
-
         return $result;
     }
 
     public static function fortunes(): string
     {
         $pdo    = self::get();
-        $result = Operation::fortunes($pdo->prepare(Operation::FORTUNE_SQL));
+        $result = Operation::fortunes(self::getStatement($pdo, 'fortunes'));
         self::put($pdo);
 
         return $result;
@@ -164,7 +171,7 @@ class Connections
     public static function query(int $queries): string
     {
         $pdo    = self::get();
-        $result = Operation::query($pdo->prepare(Operation::WORLD_SELECT_SQL), $queries);
+        $result = Operation::query(self::getStatement($pdo, 'select'), $queries);
         self::put($pdo);
 
         return $result;
@@ -172,12 +179,8 @@ class Connections
 
     public static function updates(int $queries): string
     {
-        $pdo    = self::get();
-        $update = self::$driver == 'pgsql'
-            ? $pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $queries).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $queries - 1).'?::INTEGER)')
-            : $pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ? THEN ? ', $queries).'END WHERE id IN ('.\str_repeat('?,', $queries - 1).'?)');
-
-        $result = Operation::updates($pdo->prepare(Operation::WORLD_SELECT_SQL), $update, $queries);
+        $pdo = self::get();
+        $result = Operation::updates(self::getStatement($pdo, 'select'), self::getStatement($pdo, 'update', $queries), $queries);
         self::put($pdo);
 
         return $result;
@@ -191,5 +194,26 @@ class Connections
     private static function put(PDO|PDOProxy $db): void
     {
         self::$pool->put($db);
+    }
+
+    private static function getStatement(PDO|PDOProxy $pdo, string $type, int $queries = 0): PDOStatement|PDOStatementProxy
+    {
+        $hash = spl_object_id($pdo);
+
+        if ('select' == $type) {
+            self::$dbs[$hash] = self::$dbs[$hash] ?? $pdo->prepare(Operation::WORLD_SELECT_SQL);
+            return self::$dbs[$hash];
+        } elseif ('fortunes' == $type) {
+            self::$fortunes[$hash] = self::$fortunes[$hash] ?? $pdo->prepare(Operation::FORTUNE_SQL);
+            return self::$fortunes[$hash];
+        } else {
+            self::$updates[$hash][$queries] = self::$updates[$hash][$queries]
+                ?? (
+                self::$driver == 'pgsql'
+                    ? $pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ?::INTEGER THEN ?::INTEGER ', $queries).'END WHERE id IN ('.\str_repeat('?::INTEGER,', $queries - 1).'?::INTEGER)')
+                    : $pdo->prepare('UPDATE World SET randomNumber = CASE id'.\str_repeat(' WHEN ? THEN ? ', $queries).'END WHERE id IN ('.\str_repeat('?,', $queries - 1).'?)')
+                );
+            return self::$updates[$hash][$queries];
+        }
     }
 }

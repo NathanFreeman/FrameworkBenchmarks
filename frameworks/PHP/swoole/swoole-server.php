@@ -48,14 +48,14 @@ $server->on('request', function (Request $req, Response $res) use ($connection) 
                 $res->end($connection::fortunes());
                 break;
             case '/query':
-                $queries     = $req->get['queries'] ?? -1;
+                $queries     = isset($req->get['queries']) ? (int) $req->get['queries'] : -1;
                 $query_count = $queries > 1 ? min($queries, 500) : 1;
 
                 $res->header['Content-Type'] = 'application/json';
                 $res->end($connection::query($query_count));
                 break;
             case '/updates':
-                $queries = $req->get['queries'] ?? -1;
+                $queries     = isset($req->get['queries']) ? (int) $req->get['queries'] : -1;
                 $query_count = $queries > 1 ? min($queries, 500) : 1;
 
                 $res->header['Content-Type'] = 'application/json';

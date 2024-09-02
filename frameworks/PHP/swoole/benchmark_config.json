@@ -90,6 +90,30 @@
       "display_name": "Swoole-async-postgres",
       "notes": "",
       "versus": "php"
+    },
+    "cli": {
+      "dockerfile": "swoole-cli.dockerfile",
+      "json_url": "/json",
+      "plaintext_url": "/plaintext",
+      "db_url": "/db",
+      "query_url": "/query?queries=",
+      "fortune_url": "/fortunes",
+      "update_url": "/updates?queries=",
+      "port": 8080,
+      "approach": "Realistic",
+      "classification": "Platform",
+      "database": "Postgres",
+      "framework": "swoole",
+      "language": "PHP",
+      "flavor": "PHP8.2",
+      "orm": "Raw",
+      "platform": "swoole",
+      "webserver": "none",
+      "os": "Linux",
+      "database_os": "Linux",
+      "display_name": "Swoole-cli",
+      "notes": "",
+      "versus": "php"
     }
   }]
 }

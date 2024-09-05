@@ -4,6 +4,8 @@ ENV ENABLE_COROUTINE 0
 ENV DATABASE_DRIVER pgsql
 
 RUN cd /tmp \
+    && apt update -yqq \
+    && apt install -yqq curl \
     && curl -sSL "https://github.com/swoole/swoole-cli/releases/download/v5.1.3.0/swoole-cli-v5.1.3-linux-x64.tar.xz" | tar xf - \
     && chmod 0755 ./swoole-cli
 

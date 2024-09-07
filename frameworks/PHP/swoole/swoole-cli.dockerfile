@@ -5,8 +5,9 @@ ENV DATABASE_DRIVER pgsql
 
 RUN cd /tmp \
     && apt update -yqq \
-    && apt install -yqq curl \
-    && curl -sSL "https://wenda-1252906962.file.myqcloud.com/dist/swoole-cli-v5.1.3-linux-x64.tar.xz" | tar -Jxf swoole-cli-v5.1.3-linux-x64.tar.xz \
+    && apt install -yqq wget \
+    && wget https://wenda-1252906962.file.myqcloud.com/dist/swoole-cli-v5.1.3-linux-x64.tar.xz \
+    && tar -Jxf swoole-cli-v5.1.3-linux-x64.tar.xz \
     && chmod 0755 ./swoole-cli
 
 WORKDIR /swoole
